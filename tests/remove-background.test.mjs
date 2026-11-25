@@ -54,6 +54,38 @@ test("sends the URL and secret to remove.bg and returns its PNG", async () => {
   assert.deepEqual(res.body, Buffer.from([137, 80, 78, 71]));
 });
 
+test("extracts the main photo from a reLink product page", async () => {
+  process.env.REMOVE_BG_API_KEY = "test-key";
+  let calls = 0;
+  globalThis.fetch = async (url, options) => {
+    calls += 1;
+    if (calls === 1) {
+      assert.match(url, /^https:\/\/relinkonline\.com\/products\//);
+      assert.equal(options.redirect, "error");
+      return {
+        ok: true,
+        text: async () => '<meta property="og:image" content="https://relinkonline.com/cdn/shop/files/product.jpg?v=1&amp;width=1200">',
+      };
+    }
+    assert.equal(url, "https://api.remove.bg/v1.0/removebg");
+    assert.equal(options.body.get("image_url"), "https://relinkonline.com/cdn/shop/files/product.jpg?v=1&width=1200");
+    return { ok: true, arrayBuffer: async () => Uint8Array.from([137, 80, 78, 71]).buffer };
+  };
+  const res = response();
+  await handler({ method: "POST", body: { imageUrl: "https://relinkonline.com/products/example?_pos=1" } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls, 2);
+});
+
+test("explains when a reLink page has no product image", async () => {
+  process.env.REMOVE_BG_API_KEY = "test-key";
+  globalThis.fetch = async () => ({ ok: true, text: async () => "<html></html>" });
+  const res = response();
+  await handler({ method: "POST", body: { imageUrl: "https://relinkonline.com/products/example" } }, res);
+  assert.equal(res.statusCode, 502);
+  assert.match(res.body.error, /No product image/);
+});
+
 test("shows remove.bg credit errors without exposing the API key", async () => {
   process.env.REMOVE_BG_API_KEY = "test-key";
   globalThis.fetch = async () => ({

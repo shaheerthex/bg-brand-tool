@@ -203,7 +203,7 @@ export default function Home() {
       <div style={styles.card}>
         <h1 style={styles.h1}>Batch Background Remover + Branding</h1>
         <p style={styles.sub}>
-          Paste one image URL per line. remove.bg removes each background,
+          Paste one image URL or reLink product page per line. remove.bg removes each background,
           then the image is placed on white and branded with your watermark.
           Adjust size per image, then
           download everything as a ZIP.
@@ -211,7 +211,7 @@ export default function Home() {
 
         <textarea
           style={styles.textarea}
-          placeholder={"https://example.com/product-1.jpg\nhttps://example.com/product-2.jpg\nhttps://example.com/product-3.jpg"}
+          placeholder={"https://relinkonline.com/products/example-product\nhttps://example.com/product-photo.jpg"}
           value={urlsText}
           onChange={(e) => setUrlsText(e.target.value)}
           disabled={busy}

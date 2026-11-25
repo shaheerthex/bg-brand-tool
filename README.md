@@ -1,6 +1,6 @@
 # BG Remove + Brand Tool
 
-Paste image URLs (one per line, batch supported) → remove.bg removes each
+Paste image URLs or reLink Online product links (one per line, batch supported) → remove.bg removes each
 background → the cutout is placed on a white canvas with `public/watermark.png`
 overlaid → resize per image → download individually or as a ZIP.
 
@@ -19,6 +19,9 @@ image uses remove.bg API credits. The tool requests `size=auto` and PNG output.
 
 - Paste any number of URLs into the textarea, one per line, and hit
   "Generate All".
+- For reLink Online product pages, the server extracts the main photo from
+  the page's `og:image` metadata before calling remove.bg. Other sites should
+  be provided as direct image URLs.
 - Images are processed sequentially to avoid bursting through the remove.bg
   rate limit. For large batches, consider chunking the list.
 - Each item gets its own status (queued / removing background / done / error)
