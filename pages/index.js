@@ -92,26 +92,25 @@ export default function Home() {
   }
 
   async function processOne(item) {
-    patchItem(item.id, { status: "fetching", error: null, progress: 0 });
+    patchItem(item.id, { status: "removing-bg", error: null });
     try {
-      const proxied = `/api/proxy?url=${encodeURIComponent(item.url)}`;
-      const sourceResp = await fetch(proxied);
-      if (!sourceResp.ok) {
-        const err = await sourceResp.json().catch(() => ({}));
-        throw new Error(err.error || `Fetch failed (${sourceResp.status})`);
-      }
-      const sourceBlob = await sourceResp.blob();
-
-      patchItem(item.id, { status: "removing-bg" });
-      const { removeBackground } = await import("@imgly/background-removal");
-      const cutoutBlob = await removeBackground(sourceBlob, {
-        progress: (key, current, total) => {
-          patchItem(item.id, { progress: Math.round((current / total) * 100) });
-        },
+      const response = await fetch("/api/remove-background", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: item.url }),
       });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || `Background removal failed (${response.status})`);
+      }
+      const cutoutBlob = await response.blob();
       const cutoutUrl = URL.createObjectURL(cutoutBlob);
-      const cutoutImg = await loadImage(cutoutUrl);
-      URL.revokeObjectURL(cutoutUrl);
+      let cutoutImg;
+      try {
+        cutoutImg = await loadImage(cutoutUrl);
+      } finally {
+        URL.revokeObjectURL(cutoutUrl);
+      }
 
       const watermarkImg = await ensureWatermark();
       const resultUrl = compositeImages(cutoutImg, watermarkImg, 1);
@@ -121,7 +120,6 @@ export default function Home() {
         cutoutImg,
         resultUrl,
         scale: 1,
-        progress: 100,
       });
     } catch (err) {
       console.error(err);
@@ -141,13 +139,11 @@ export default function Home() {
       resultUrl: null,
       cutoutImg: null,
       error: null,
-      progress: 0,
     }));
     setItems(newItems);
     setBusy(true);
 
-    // Sequential on purpose — the segmentation model is heavy WASM work,
-    // running many at once can stall/crash a low-end browser tab.
+    // Process sequentially to keep the batch within remove.bg rate limits.
     for (const item of newItems) {
       // eslint-disable-next-line no-await-in-loop
       await processOne(item);
@@ -207,9 +203,9 @@ export default function Home() {
       <div style={styles.card}>
         <h1 style={styles.h1}>Batch Background Remover + Branding</h1>
         <p style={styles.sub}>
-          Paste one image URL per line. Each one is background-removed free
-          in your browser (no API key, no per-image cost), placed on white,
-          and branded with your watermark. Adjust size per image, then
+          Paste one image URL per line. remove.bg removes each background,
+          then the image is placed on white and branded with your watermark.
+          Adjust size per image, then
           download everything as a ZIP.
         </p>
 
@@ -263,8 +259,7 @@ export default function Home() {
                   {(it.status === "pending" || it.status === "fetching" || it.status === "removing-bg") && (
                     <div style={styles.placeholder}>
                       {it.status === "pending" && "Queued…"}
-                      {it.status === "fetching" && "Fetching…"}
-                      {it.status === "removing-bg" && `Removing background… ${it.progress || 0}%`}
+                      {it.status === "removing-bg" && "Removing background…"}
                     </div>
                   )}
 
