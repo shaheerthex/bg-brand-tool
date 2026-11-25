@@ -1,21 +1,31 @@
 # BG Remove + Brand Tool
 
-Paste image URLs (one per line, batch supported) → each background is
-removed **entirely in the browser** (no paid API, no server GPU) → the
-cutout is composited on a white canvas with your `public/watermark.png`
-branding overlaid on top → resize per image with a slider → download
-individually or as a ZIP of everything.
+Paste image URLs or reLink Online product links (one per line, batch supported) → remove.bg removes each
+background → the cutout is placed on a white canvas with `public/watermark.png`
+overlaid → resize per image → download individually or as a ZIP.
+
+## Set up remove.bg
+
+1. Get an API key from [remove.bg](https://www.remove.bg/api).
+2. Copy `.env.example` to `.env.local` and replace the placeholder with your key.
+3. For a Vercel deployment, add `REMOVE_BG_API_KEY` in the project's
+   environment variables and redeploy.
+
+The key is read only by `pages/api/remove-background.js`; it is never sent to
+the browser. Do not prefix the variable with `NEXT_PUBLIC_`. Each processed
+image uses remove.bg API credits. The tool requests `size=auto` and PNG output.
 
 ## Batch processing
 
 - Paste any number of URLs into the textarea, one per line, and hit
   "Generate All".
-- Images are processed **sequentially** (not in parallel) — the
-  segmentation model is heavy WASM work, and running many at once can
-  stall or crash a low-end browser tab. For a few dozen images this is
-  fine; for hundreds, consider chunking the list.
-- Each item gets its own status (queued / fetching / removing background
-  with a % / done / error) and its own size slider — resizing one image
+- For reLink Online product pages, the server extracts the main photo from
+  the page's `og:image` metadata before calling remove.bg. Other sites should
+  be provided as direct image URLs.
+- Images are processed sequentially to avoid bursting through the remove.bg
+  rate limit. For large batches, consider chunking the list.
+- Each item gets its own status (queued / removing background / done / error)
+  and its own size slider — resizing one image
   doesn't touch the others.
 - Failed items show the error inline with a **Retry** button so one bad
   URL doesn't block the rest of the batch.
@@ -23,19 +33,9 @@ individually or as a ZIP of everything.
   slider size) into a single `branded-images.zip`, named after each
   source URL's filename.
 
-## Why this approach (no API cost)
-
-- Background removal uses [`@imgly/background-removal`](https://github.com/imgly/background-removal-js),
-  which runs a segmentation model client-side via WASM/ONNX in the user's
-  own browser. The model (~15-20MB) is fetched from a CDN the first time
-  and cached — there is no per-request cost to you, and no API key.
-- The only server-side code is `pages/api/proxy.js`, a tiny pass-through
-  fetch that lets the browser load an arbitrary image URL into a
-  `<canvas>` without CORS errors. It's a normal Vercel serverless
-  function (free tier covers this easily).
-- The Android repo you found (`auto-background-remover`) is a **Kotlin/
-  Android library** — not usable in a Vercel web app. `@imgly/background-removal`
-  is the web equivalent of that "offline, no API" idea.
+The API route sends the image URL to remove.bg and returns the resulting PNG
+to the browser. On a public deployment, access to that route should be
+restricted to trusted users because calls consume your credits.
 
 ## Local dev
 
@@ -53,8 +53,8 @@ npm install -g vercel   # if you don't have it
 vercel
 ```
 
-Or just push this folder to a GitHub repo and import it in the Vercel
-dashboard (vercel.com/new) — zero config needed, it's a stock Next.js app.
+Or import the GitHub repo in Vercel, set `REMOVE_BG_API_KEY` in project
+environment variables, and deploy.
 
 ## Customizing the branding overlay
 
@@ -66,9 +66,7 @@ dashboard (vercel.com/new) — zero config needed, it's a stock Next.js app.
 
 ## Notes / limits
 
-- First background-removal call in a fresh browser is slower (downloading
-  the model). Subsequent ones are fast since it's cached.
-- Very large source images will slow down the in-browser model — you can
-  downscale the fetched image before calling `removeBackground` if needed.
-- If a pasted URL 404s, isn't an image, or blocks hotlinking, the proxy
-  will surface an error instead of a blank canvas.
+- Source image URLs must be reachable by remove.bg. Inaccessible or invalid
+  images show an error on the corresponding item.
+- remove.bg enforces image size, resolution, credit, and rate limits; its
+  error is shown on the corresponding item.
